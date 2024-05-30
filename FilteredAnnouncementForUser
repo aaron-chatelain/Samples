@@ -1,25 +1,14 @@
-        private static IEnumerable<AnnouncementModel> GetFilteredAnnouncementForUserUsingFilter2(IEnumerable<AnnouncementViewEntity> announcements,
-        int userID, List<int> docCatID, int noOfAnnouncement, List<string> postedDate, bool thumbnailVisibility)
+        private static IEnumerable<AnnouncementModel> GetFilteredAnnouncementForUserUsingFilter(IEnumerable<AnnouncementViewEntity> announcements,
+        int userId, List<int> filterByDocumentCategoryIds, List<string> filterByPostedDates, bool thumbnailVisibility)
         {
             IEnumerable<AnnouncementModel> FilteredAnnouncement = null;
-            LingMetaData metaData = new LingMetaData();
 
-            FilteredAnnouncement = (from ann in announcements
-                                    where (docCatID.Contains(ann.DocumentCategoryID ?? 0) && (ann.Posted.Date >= DateTime.Parse(postedDate[0]) && ann.Posted.Date <= DateTime.Parse(postedDate[1])))
-                                    select new AnnouncementModel
-                                    {
-                                        AnnouncementTypeID = ann.AnnouncementTypeID,
-                                        DocumentCategoryID = ann.DocumentCategoryID,
-                                        Label = ann.Posted.ToString("MM.dd.yyyy") + " - " + ann.Title,
-                                        EndTimeZoneInfo = ann.EndTimeZoneInfo,
-                                        StartTimeZoneInfo = ann.StartTimeZoneInfo,
-                                        AnnouncementAccessed = ann.AnnouncementAccessed,
-                                        CoverImageURL = AnnouncementManager.GenerateCoverImageURLFromCoverImageID(ann.CoverImageID),
-                                        AnnouncementIcon = AnnouncementManager.IconForAlert(ann.AnnouncementTypeID, ann.Filename),
-                                        AnnouncementPostedDate = ann.Posted.ToString("MMM yyyy"),
-                                        ThumbnailVisibility = thumbnailVisibility ? "inline-block" : "none",
-                                        Highlight = AnnouncementManager.HighLightAnnouncement(ann.Id) //update this to column highlight
-                                    }).Distinct();
+            FilteredAnnouncement = (
+                from announcement in announcements
+                where filterByDocumentCategoryIds.Contains(announcement.DocumentCategoryID ?? 0)
+                where announcement.Posted.Date >= DateTime.Parse(filterByPostedDates[0]) && announcement.Posted.Date <= DateTime.Parse(filterByPostedDates[1])
+                select AnnouncementModel.MapFrom(announcement, thumbnailVisibility)
+                ).Distinct();
 
             FilteredAnnouncement = FilteredAnnouncement.Select(annModel =>
             {
@@ -32,10 +21,58 @@
                     IFS.Platform.Managers.VehicleManager vehicleManager = new IFS.Platform.Managers.VehicleManager();
                     VehicleEntity vehicleEntity = vehicleManager.GetVehicle(vehicleIDInt);
                     annModel.VehicleGuid = vehicleEntity.VehicleGuid;
-                    annModel.VehicleDisclaimerAcceptRequired = vehicleManager.IsDisclaimerAcceptRequiredForVehicle(userID, vehicleIDInt);
+                    annModel.VehicleDisclaimerAcceptRequired = vehicleManager.IsDisclaimerAcceptRequiredForVehicle(userId, vehicleIDInt);
                 }
                 return annModel;
             });
 
             return FilteredAnnouncement;
         }
+
+
+    public class AnnouncementModel
+    {
+        public int AnnouncementTypeID { get; set; }
+        public int? DocumentCategoryID { get; set; }
+        public string Label { get; set; }
+        public EndTimeZoneInfo EndTimeZoneInfo { get; set; }
+        public StartTimeZoneInfo StartTimeZoneInfo { get; set; }
+        public bool AnnouncementAccessed { get; set; }
+        public string CoverImageURL { get; set; }
+        public string AnnouncementPostedDate { get; set; }
+        public string ThumbnailVisibility { get; set; }
+        public int AnnouncementIcon { get; set; }
+        public int Highlight { get; set; }
+        public object AnnouncementId { get; internal set; }
+        public List<int> AnnouncementDetails { get; set; }
+        public int? vehicleID { get; set; }
+        public object VehicleGuid { get; internal set; }
+        public bool VehicleDisclaimerAcceptRequired { get; internal set; }
+
+        public static AnnouncementModel MapFrom(AnnouncementViewEntity announcement, bool thumbnailVisibility)
+        {
+            return new AnnouncementModel
+            {
+                AnnouncementTypeID = announcement.AnnouncementTypeID,
+                DocumentCategoryID = announcement.DocumentCategoryID,
+                Label = StringHelper.GetLabel(announcement.Posted.Date, announcement.Title),
+                EndTimeZoneInfo = announcement.EndTimeZoneInfo,
+                StartTimeZoneInfo = announcement.StartTimeZoneInfo,
+                AnnouncementAccessed = announcement.AnnouncementAccessed,
+                CoverImageURL = AnnouncementManager.GenerateCoverImageURLFromCoverImageID(announcement.CoverImageID),
+                AnnouncementIcon = AnnouncementManager.IconForAlert(ann.AnnouncementTypeID, announcement.Filename),
+                AnnouncementPostedDate = announcement.Posted.ToString("MMM yyyy"),
+                ThumbnailVisibility = thumbnailVisibility ? "inline-block" : "none",
+                // TODO: update this to column highlight (GIT: 20511)
+                Highlight = AnnouncementManager.HighLightAnnouncement(announcement.Id)
+            };
+        }
+    }
+
+    public static class StringHelper
+    {
+        public static string GetLabel(DateTime date, string title)
+        {
+            return string.Format("{1}-{2}", date.ToString("MM.dd.yyyy"), title);
+        }
+    }
